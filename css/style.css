@@ -1,0 +1,52 @@
+*,
+*::before,
+*::after {
+    margin: 0;
+}
+
+body {
+    position: relative;
+}
+
+.score-block {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    color: white;
+}
+
+.game-over {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    text-align: center;
+}
+
+.game-over__title {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.btn {
+    padding: 8px;
+    border: none;
+    background-color: rgb(253, 96, 123);
+    color: white;
+    cursor: pointer;
+}
+
+.start-game .btn {
+    position: absolute;
+    left: 50%;
+    top: 80%;
+    padding: 24px;
+    font-size: 32px;
+    line-height: 36px;
+    transform: translateX(-50%);
+}
