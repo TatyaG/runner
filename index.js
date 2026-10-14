@@ -5,6 +5,8 @@ import { clone } from "three/addons/utils/SkeletonUtils.js";
 let startGame = false;
 let player;
 let menuCat;
+let logTemplate;
+let coinTemplate;
 let isJumping = false;
 let jumpTime = 0;
 const jumpDuration = 0.6; // Длительность прыжка в секундах
@@ -13,9 +15,9 @@ let isGameOver = false;
 
 const clock = new THREE.Clock();
 
-// 1. Инициализация сцены, камеры и рендерера
+// Инициализация сцены, камеры и рендерера
 const scene = new THREE.Scene();
-// Добавим легкий туман в стиле киберпанк/неон
+// Туман в конце дороги
 scene.fog = new THREE.FogExp2("#ffd7d7", 0.04);
 
 const camera = new THREE.PerspectiveCamera(
@@ -36,7 +38,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
-// 2. Добавляем свет
+// Добавляем свет
 const ambientLight = new THREE.AmbientLight("white", 0.5);
 scene.add(ambientLight);
 
@@ -45,7 +47,7 @@ dirLight.position.set(5, 5, 5);
 dirLight.castShadow = true; // включаем тени для направленного света
 scene.add(dirLight);
 
-// 3. Создаем временную дорогу (плоскость)
+// Создаем дорогу
 const roadGeometry = new THREE.PlaneGeometry(6, 100);
 const roadMaterial = new THREE.MeshStandardMaterial({
   color: "#C1C1C5",
@@ -56,7 +58,26 @@ road.rotation.x = -Math.PI / 2; // Кладем плоскость горизо�
 road.position.z = -40;
 scene.add(road);
 
-// 4. Создаем игрока (пока обычный яркий куб)
+// Полосы дороги
+
+const laneMarkingGeometry = new THREE.PlaneGeometry(0.06, 2);
+const laneMarkingMaterial = new THREE.MeshBasicMaterial({ color: "white" });
+const laneMarkings = [-0.9, 0.9].map((x) => {
+  const marking = new THREE.Group();
+  marking.position.set(x, 0.01, road.position.z);
+
+  for (let z = -48; z <= 48; z += 4) {
+    const dash = new THREE.Mesh(laneMarkingGeometry, laneMarkingMaterial);
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.z = z;
+    marking.add(dash);
+  }
+
+  scene.add(marking);
+  return marking;
+});
+
+// Создаем игрока (котик)
 
 const loader = new GLTFLoader();
 let mixer; // Нужен для проигрывания анимации
@@ -72,8 +93,6 @@ loader.load(
     player.position.set(0, 0.4, 2);
     player.rotation.y = Math.PI;
 
-    console.log(menuCat);
-
     menuCat.scale.set(1.5, 1.5, 1.5);
     menuCat.position.set(0, 0, 0);
 
@@ -84,7 +103,6 @@ loader.load(
     // Проверяем массив анимаций
     if (gltf.animations && gltf.animations.length > 0) {
       playerAnimations = gltf.animations;
-      console.log(playerAnimations);
 
       const startAnimation = playerAnimations.find((anim) =>
         anim.name.includes("06_Greeting_LittleFriends"),
@@ -105,6 +123,42 @@ loader.load(
         action.play();
       }
     }
+  },
+  undefined,
+  (error) => {
+    console.error("Ошибка загрузки модели:", error);
+  },
+);
+
+loader.load(
+  "models/logs/scene.gltf",
+  (gltf) => {
+    const logModel = gltf.scene;
+    const bounds = new THREE.Box3().setFromObject(logModel); // оборачиваем модель в ограничивающий прямоугольник
+    const center = bounds.getCenter(new THREE.Vector3()); // ищем центр этого прямоугольника
+    logModel.position.set(-center.x, -bounds.min.y, -center.z);
+
+    logTemplate = new THREE.Group();
+    logTemplate.add(logModel);
+    logTemplate.scale.setScalar(1.5);
+  },
+  undefined,
+  (error) => {
+    console.error("Ошибка загрузки модели:", error);
+  },
+);
+
+loader.load(
+  "models/coin/scene.gltf",
+  (gltf) => {
+    const coinModel = gltf.scene;
+    const bounds = new THREE.Box3().setFromObject(coinModel); // оборачиваем модель в ограничивающий прямоугольник
+    const center = bounds.getCenter(new THREE.Vector3()); // ищем центр этого прямоугольника
+    coinModel.position.set(-center.x, -bounds.min.y, -center.z);
+
+    coinTemplate = new THREE.Group();
+    coinTemplate.add(coinModel);
+    coinTemplate.scale.setScalar(0.8);
   },
   undefined,
   (error) => {
@@ -162,33 +216,42 @@ window.addEventListener("keydown", (e) => {
   targetX = lanes[currentLaneIndex];
 });
 
-// 3. Препятствия
+// Препятствия
 const obstacles = [];
-const obstacleGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.4);
-const obstacleMaterial = new THREE.MeshStandardMaterial({
-  color: 0x00ffff,
-  emissive: 0x00ffff,
-  emissiveIntensity: 0.8,
-});
 
 function spawnObstacle() {
-  if (isGameOver) return;
-  const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-  // Случайная линия для препятствия
+  if (isGameOver || !logTemplate) return;
+
   const randomLane = Math.floor(Math.random() * lanes.length);
-  obstacle.position.set(lanes[randomLane], 0.4, -60);
+  const obstacle = clone(logTemplate);
+  obstacle.position.set(lanes[randomLane], 0, -60);
   scene.add(obstacle);
   obstacles.push(obstacle);
 }
 
+// Монетки
+
+const coins = [];
+
+function spawnCoin() {
+  if (isGameOver || !coinTemplate) return;
+
+  const randomLane = Math.floor(Math.random() * lanes.length);
+  const coin = clone(coinTemplate);
+  coin.position.set(lanes[randomLane], 0, -80);
+  scene.add(coin);
+  coins.push(coin);
+}
+
 // Спавним препятствие каждые 1.5 секунды
 setInterval(spawnObstacle, 1500);
+setInterval(spawnCoin, 1500);
 
 let score = 0;
 const scoreElement = document.getElementById("score");
 const gameSpeed = 0.1; // Скорость движения мира
 
-// 4. Игровой цикл
+// Игровой цикл
 function animate() {
   requestAnimationFrame(animate);
 
@@ -237,8 +300,14 @@ function animate() {
 
   // Движение дороги
   road.position.z += gameSpeed;
+  laneMarkings.forEach((marking) => {
+    marking.position.z = road.position.z;
+  });
   if (road.position.z > 10) {
     road.position.z = -20;
+    laneMarkings.forEach((marking) => {
+      marking.position.z = road.position.z;
+    });
   }
 
   // Движение и проверка препятствий
@@ -253,6 +322,7 @@ function animate() {
     if (distanceX < 0.6 && distanceZ < 0.6 && player.position.y < 0.8) {
       isGameOver = true;
       const gameOverBlock = createGameOver(score);
+      player.rotation.x = Math.PI * 0.4;
       document.body.append(gameOverBlock);
     }
 
@@ -260,8 +330,34 @@ function animate() {
     if (obs.position.z > 5) {
       scene.remove(obs);
       obstacles.splice(i, 1);
-      score += 10;
-      scoreElement.innerText = score;
+    }
+  }
+
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const coin = coins[i];
+    coin.position.z += gameSpeed;
+
+    if (player) {
+      const distanceX = Math.abs(player.position.x - coin.position.x);
+      const distanceZ = Math.abs(player.position.z - coin.position.z);
+
+      if (distanceX < 0.8 && distanceZ < 0.8) {
+        scene.remove(coin);
+        coins.splice(i, 1);
+        score += 10;
+        const points = addedPoints(10);
+        document.body.append(points);
+        setTimeout(() => {
+          points.remove();
+        }, 2500)
+        scoreElement.innerText = score;
+        continue;
+      }
+    }
+
+    if (coin.position.z > 5) {
+      scene.remove(coin);
+      coins.splice(i, 1);
     }
   }
 
@@ -309,7 +405,6 @@ function createGameStart() {
     e.preventDefault();
 
     if (menuCat) {
-      console.log("aa");
       scene.remove(menuCat);
     }
     startBlock.remove();
@@ -327,6 +422,16 @@ function createGameStart() {
   startBlock.append(btnStart);
 
   document.body.append(startBlock);
+}
+
+function addedPoints(pointValue) {
+  const point = document.createElement('p');
+
+  point.classList.add('points');
+
+  point.textContent = `+${pointValue}`;
+
+  return point;
 }
 
 // Обработка изменения размера окна

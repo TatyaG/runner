@@ -1,0 +1,8 @@
+Model Information:
+* title:	Coin Hyper Casual
+* source:	https://sketchfab.com/3d-models/coin-hyper-casual-bb6ade669d664962b16df46ab1f46bef
+* author:	TheArbuzikYT (https://sketchfab.com/TheArbuzikYT)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
